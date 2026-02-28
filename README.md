@@ -78,7 +78,7 @@ $env:ADMIN_USER_IDS = "tu_user_id"
 ## Ejecución
 
 ```bash
-python bot.py
+python stockbot.py
 ```
 
 ## Uso
@@ -135,7 +135,7 @@ Usa `/q` seguido del ticker y opcionalmente un intent:
 ## Estructura del proyecto
 
 ```
-bot.py                          # Entry point
+stockbot.py                     # Entry point
 config.py                       # Configuración y variables de entorno
 requirements.txt                # Dependencias
 data/
