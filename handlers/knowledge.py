@@ -14,7 +14,7 @@ from services.knowledge.article_search import search_web, has_search_provider
 from services.knowledge.article_summarizer import summarize_text
 from services.knowledge.article_tagger import auto_tag, get_all_tags
 from services.tracking.company_profile import link_article
-from utils.text import escape_html, truncate
+from utils.text import escape_html, truncate, safe_truncate_html
 from utils.validators import is_valid_url
 from utils.dates import format_date
 from config import ITEMS_PER_PAGE
@@ -121,7 +121,7 @@ async def kb_handle_lang(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard.append([InlineKeyboardButton("◀️ Volver", callback_data="menu_kb")])
 
     if len(text) > 4000:
-        text = text[:3990] + "..."
+        text = safe_truncate_html(text)
 
     await query.edit_message_text(
         text, reply_markup=InlineKeyboardMarkup(keyboard),
@@ -311,7 +311,7 @@ async def _show_library_page(target, session, article_ids, page, title):
     keyboard.append([InlineKeyboardButton("◀️ Volver", callback_data="menu_kb")])
 
     if len(text) > 4000:
-        text = text[:3990] + "..."
+        text = safe_truncate_html(text)
 
     markup = InlineKeyboardMarkup(keyboard)
     if hasattr(target, "edit_message_text"):
@@ -442,7 +442,7 @@ async def kb_detail(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"📋 <b>Resumen:</b>\n{escape_html(truncate(article.summary or '', 800))}"
         )
         if len(text) > 4000:
-            text = text[:3990] + "..."
+            text = safe_truncate_html(text)
 
         fav_label = "💔 Quitar favorito" if article.is_favorite else "⭐ Favorito"
         keyboard = [

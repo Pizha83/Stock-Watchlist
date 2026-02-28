@@ -5,7 +5,7 @@ import io
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from services.sources.sources_seed import DATA_TAXONOMY, RATIOS
-from utils.text import escape_html
+from utils.text import escape_html, safe_truncate_html
 
 
 async def datos_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -52,7 +52,7 @@ async def dat_resumen(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard.append([InlineKeyboardButton("◀️ Volver", callback_data="menu_datos")])
 
     if len(text) > 4000:
-        text = text[:3990] + "..."
+        text = safe_truncate_html(text)
 
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="HTML")
 
@@ -80,7 +80,7 @@ async def dat_category(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text += "\n"
 
     if len(text) > 4000:
-        text = text[:3990] + "..."
+        text = safe_truncate_html(text)
 
     keyboard = [[InlineKeyboardButton("◀️ Volver", callback_data="dat_resumen")]]
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="HTML")
@@ -98,7 +98,7 @@ async def dat_ratios(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text += f"  Unidad: {r['unit']} | {r['periodicity']}\n\n"
 
     if len(text) > 4000:
-        text = text[:3990] + "..."
+        text = safe_truncate_html(text)
 
     keyboard = [[InlineKeyboardButton("◀️ Volver", callback_data="menu_datos")]]
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="HTML")

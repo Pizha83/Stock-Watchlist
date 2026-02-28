@@ -62,3 +62,23 @@ def format_price(n, currency: str = "") -> str:
         return "N/A"
     prefix = f"{currency} " if currency else ""
     return f"{prefix}{n:,.2f}"
+
+
+def safe_truncate_html(text: str, max_len: int = 4000, suffix: str = "...") -> str:
+    """Truncate text at line boundaries to avoid breaking HTML tags.
+
+    Cuts at the last complete line that fits within max_len - len(suffix).
+    """
+    if len(text) <= max_len:
+        return text
+    budget = max_len - len(suffix)
+    lines = text.split("\n")
+    result = []
+    total = 0
+    for line in lines:
+        needed = len(line) + (1 if result else 0)
+        if total + needed > budget:
+            break
+        result.append(line)
+        total += needed
+    return "\n".join(result) + suffix
