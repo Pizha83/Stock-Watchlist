@@ -149,14 +149,20 @@ async def pf_total_pnl(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     emoji = "🟢" if pnl["total_pnl"] > 0 else ("🔴" if pnl["total_pnl"] < 0 else "⚪")
+    currencies = pnl.get("currencies", [])
+    cur_label = currencies[0] if len(currencies) == 1 else ""
+    multi_note = ""
+    if len(currencies) > 1:
+        multi_note = f"\n⚠️ Multi-moneda ({', '.join(currencies)}): importes sumados sin conversión FX.\n"
+
     text = (
         f"📈 <b>Rendimiento total</b>\n\n"
-        f"Posiciones: {pnl['num_positions']}\n"
-        f"Coste total: {pnl['total_cost']:,.2f}\n"
-        f"Valor actual: {pnl['total_value']:,.2f}\n\n"
-        f"{emoji} <b>P&L no realizado: {pnl['unrealized_pnl']:+,.2f}</b>\n"
-        f"P&L realizado: {pnl['realized_pnl']:+,.2f}\n"
-        f"P&L total: {pnl['total_pnl']:+,.2f} ({pnl['pct']:+.1f}%)\n\n"
+        f"Posiciones: {pnl['num_positions']}{multi_note}\n"
+        f"Coste total: {format_price(pnl['total_cost'], cur_label)}\n"
+        f"Valor actual: {format_price(pnl['total_value'], cur_label)}\n\n"
+        f"{emoji} <b>P&L no realizado: {pnl['unrealized_pnl']:+,.2f} {cur_label}</b>\n"
+        f"P&L realizado: {pnl['realized_pnl']:+,.2f} {cur_label}\n"
+        f"P&L total: {pnl['total_pnl']:+,.2f} {cur_label} ({pnl['pct']:+.1f}%)\n\n"
         f"<i>⚠️ {DISCLAIMER}</i>"
     )
 
@@ -410,11 +416,12 @@ async def pf_sell_price(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     session = get_session()
     try:
-        pos = record_sell(session, user_id, pos_id, shares, price)
-        if not pos:
-            await update.message.reply_text(
-                "❌ Error: posición no encontrada o intentas vender más acciones de las que tienes."
-            )
+        pos, err = record_sell(session, user_id, pos_id, shares, price)
+        if err == "position_not_found":
+            await update.message.reply_text("❌ Posición no encontrada.")
+            return ConversationHandler.END
+        if err == "insufficient_shares":
+            await update.message.reply_text("❌ No tienes suficientes acciones para esta venta.")
             return ConversationHandler.END
 
         realized = (price - pos.avg_price) * shares

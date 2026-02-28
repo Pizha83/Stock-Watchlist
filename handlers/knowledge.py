@@ -468,7 +468,7 @@ async def kb_favorite(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     session = get_session()
     try:
-        article = session.query(Article).get(article_id)
+        article = session.get(Article, article_id)
         if article:
             article.is_favorite = not article.is_favorite
             session.commit()
@@ -489,7 +489,7 @@ async def kb_resummarize(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     session = get_session()
     try:
-        article = session.query(Article).get(article_id)
+        article = session.get(Article, article_id)
         if article and article.full_text:
             article.summary = summarize_text(article.full_text)
             session.commit()

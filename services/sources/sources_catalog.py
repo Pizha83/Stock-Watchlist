@@ -41,18 +41,18 @@ def search_sources(session: Session, query: str) -> list[Source]:
 
 
 def get_source_detail(session: Session, source_id: int) -> Source | None:
-    return session.query(Source).get(source_id)
+    return session.get(Source, source_id)
 
 
 def toggle_recommended(session: Session, source_id: int):
-    source = session.query(Source).get(source_id)
+    source = session.get(Source, source_id)
     if source:
         source.is_recommended = not source.is_recommended
         session.commit()
 
 
 def update_notes(session: Session, source_id: int, notes: str):
-    source = session.query(Source).get(source_id)
+    source = session.get(Source, source_id)
     if source:
         source.notes = notes
         session.commit()

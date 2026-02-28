@@ -377,7 +377,7 @@ async def trk_emp_detail(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if links:
             text += "📚 <b>Artículos vinculados:</b>\n"
             for lnk in links[:5]:
-                a = session.query(Article).get(lnk.article_id)
+                a = session.get(Article, lnk.article_id)
                 if a:
                     text += f"  • {escape_html(truncate(a.title, 50))}\n"
 
@@ -704,7 +704,7 @@ async def trk_alert_deactivate(update: Update, context: ContextTypes.DEFAULT_TYP
 
     session = get_session()
     try:
-        alert = session.query(Alert).get(alert_id)
+        alert = session.get(Alert, alert_id)
         if not alert:
             await query.edit_message_text("⚠️ Alerta no encontrada.")
             return

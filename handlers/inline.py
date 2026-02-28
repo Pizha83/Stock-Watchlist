@@ -24,36 +24,39 @@ _CARD_INTENTS = [
     ("MARGINS", "📋 Márgenes"),
 ]
 
-_HELP_RESULT = InlineQueryResultArticle(
-    id="help",
-    title="❓ Cómo usar",
-    description="Escribe un ticker: @bot AAPL, @bot SAN.MC ...",
-    input_message_content=InputTextMessageContent(
-        message_text=(
-            "❓ <b>Consulta rápida</b>\n\n"
-            "Escribe <code>@bot TICKER</code> para ver datos.\n"
-            "Ejemplo: <code>@bot AAPL</code>, <code>@bot SAN.MC</code>\n\n"
-            f"<i>⚠️ {DISCLAIMER}</i>"
+def _make_help_result(bot_username: str) -> InlineQueryResultArticle:
+    return InlineQueryResultArticle(
+        id="help",
+        title="❓ Cómo usar",
+        description=f"Escribe un ticker: @{bot_username} AAPL, @{bot_username} SAN.MC ...",
+        input_message_content=InputTextMessageContent(
+            message_text=(
+                "❓ <b>Consulta rápida</b>\n\n"
+                f"Escribe <code>@{bot_username} TICKER</code> para ver datos.\n"
+                f"Ejemplo: <code>@{bot_username} AAPL</code>, <code>@{bot_username} SAN.MC</code>\n\n"
+                f"<i>⚠️ {DISCLAIMER}</i>"
+            ),
+            parse_mode="HTML",
         ),
-        parse_mode="HTML",
-    ),
-)
+    )
 
 
 async def handle_inline(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle inline queries: @bot TICKER [intent]."""
     query = update.inline_query
     text = (query.query or "").strip()
+    bot_username = get_bot_username(context)
+    help_result = _make_help_result(bot_username)
 
     if not text:
-        await query.answer([_HELP_RESULT], cache_time=60, is_personal=False)
+        await query.answer([help_result], cache_time=60, is_personal=False)
         return
 
     parsed = parse_query(text)
     tickers = parsed["tickers"]
 
     if not tickers:
-        await query.answer([_HELP_RESULT], cache_time=30, is_personal=False)
+        await query.answer([help_result], cache_time=30, is_personal=False)
         return
 
     ticker = tickers[0]

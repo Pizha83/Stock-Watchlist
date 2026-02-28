@@ -16,7 +16,7 @@ def get_watchlists(session: Session, user_id: int) -> list[Watchlist]:
 
 
 def get_watchlist(session: Session, wl_id: int) -> Watchlist | None:
-    return session.query(Watchlist).get(wl_id)
+    return session.get(Watchlist, wl_id)
 
 
 def add_to_watchlist(session: Session, wl_id: int, company_id: int, notes: str = "") -> WatchlistItem:
@@ -41,7 +41,7 @@ def get_watchlist_items(session: Session, wl_id: int) -> list[WatchlistItem]:
 
 
 def delete_watchlist(session: Session, wl_id: int):
-    wl = session.query(Watchlist).get(wl_id)
+    wl = session.get(Watchlist, wl_id)
     if wl:
         session.delete(wl)
         session.commit()

@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 from services.models import Alert, Article, Company, Watchlist, WatchlistItem
 
@@ -33,7 +33,7 @@ def get_active_alerts(session: Session, user_id: int) -> list[Alert]:
 
 
 def get_upcoming_alerts(session: Session, user_id: int, days: int = 7) -> list[Alert]:
-    limit = datetime.utcnow() + timedelta(days=days)
+    limit = datetime.now(timezone.utc) + timedelta(days=days)
     return (
         session.query(Alert)
         .filter(
@@ -48,7 +48,7 @@ def get_upcoming_alerts(session: Session, user_id: int, days: int = 7) -> list[A
 
 
 def deactivate_alert(session: Session, alert_id: int):
-    alert = session.query(Alert).get(alert_id)
+    alert = session.get(Alert, alert_id)
     if alert:
         alert.is_active = False
         session.commit()

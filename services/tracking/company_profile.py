@@ -10,7 +10,7 @@ def create_company(session: Session, ticker: str, **kwargs) -> Company:
 
 
 def get_company(session: Session, company_id: int) -> Company | None:
-    return session.query(Company).get(company_id)
+    return session.get(Company, company_id)
 
 
 def get_company_by_ticker(session: Session, ticker: str) -> Company | None:
@@ -31,7 +31,7 @@ def search_companies(session: Session, query: str) -> list[Company]:
 
 
 def update_company(session: Session, company_id: int, **kwargs):
-    company = session.query(Company).get(company_id)
+    company = session.get(Company, company_id)
     if company:
         for k, v in kwargs.items():
             if hasattr(company, k):
@@ -66,7 +66,7 @@ def link_article(session: Session, company_id: int, article_id: int):
 
 
 def delete_company(session: Session, company_id: int):
-    company = session.query(Company).get(company_id)
+    company = session.get(Company, company_id)
     if company:
         session.delete(company)
         session.commit()
