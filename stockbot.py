@@ -4,7 +4,7 @@ import logging
 from telegram.ext import (
     Application, CommandHandler, CallbackQueryHandler, InlineQueryHandler,
 )
-from config import TELEGRAM_BOT_TOKEN
+from config import TELEGRAM_BOT_TOKEN, ADMIN_USER_IDS
 from services.db import init_db, get_session
 from services.sources.sources_seed import seed_sources
 from utils.logging import setup_logging
@@ -43,9 +43,44 @@ def main():
 
     # ── Build Telegram application ───────────────────────────────
     async def _post_init(application):
+        from telegram import (
+            BotCommand, BotCommandScopeAllPrivateChats,
+            BotCommandScopeAllGroupChats, BotCommandScopeChatMember,
+        )
+
         me = await application.bot.get_me()
         application.bot_data["bot_username"] = me.username
         logger.info(f"Bot username: @{me.username}")
+
+        # ── Register command menus with scopes ─────────────────
+        private_cmds = [
+            BotCommand("start", "Menu principal"),
+            BotCommand("cartera", "Gestion de cartera"),
+            BotCommand("tracking", "Watchlists y seguimiento"),
+            BotCommand("articulos", "Base de conocimiento"),
+            BotCommand("datos", "Datos necesarios"),
+            BotCommand("fuentes", "Directorio de fuentes"),
+            BotCommand("help", "Ayuda"),
+            BotCommand("cancel", "Cancelar operacion"),
+        ]
+        group_cmds = [
+            BotCommand("q", "Consulta rapida: /q AAPL"),
+        ]
+        admin_cmds = private_cmds + [
+            BotCommand("admin", "Panel de administracion"),
+        ]
+
+        await application.bot.set_my_commands(private_cmds, scope=BotCommandScopeAllPrivateChats())
+        await application.bot.set_my_commands(group_cmds, scope=BotCommandScopeAllGroupChats())
+        for admin_id in ADMIN_USER_IDS:
+            try:
+                await application.bot.set_my_commands(
+                    admin_cmds,
+                    scope=BotCommandScopeChatMember(chat_id=admin_id, user_id=admin_id),
+                )
+            except Exception:
+                logger.warning(f"Could not set admin commands for user {admin_id}")
+        logger.info("Command menus registered.")
 
     app = Application.builder().token(TELEGRAM_BOT_TOKEN).post_init(_post_init).build()
 

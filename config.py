@@ -30,3 +30,16 @@ RATE_LIMIT_WINDOW = 60          # window in seconds
 
 # Disclaimer
 DISCLAIMER = "No es asesoramiento financiero."
+
+# Button styles (Bot API 9.4, via api_kwargs)
+ENABLE_BUTTON_STYLES = True
+
+def btn_style(style: str) -> dict:
+    """Return api_kwargs dict for button style if enabled.
+
+    Usage: InlineKeyboardButton("Buy", callback_data="x", **btn_style("success"))
+    Valid styles: "success" (green), "danger" (red), "primary" (blue).
+    """
+    if ENABLE_BUTTON_STYLES and style:
+        return {"api_kwargs": {"style": style}}
+    return {}

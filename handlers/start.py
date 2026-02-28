@@ -17,6 +17,7 @@ MAIN_KEYBOARD = [
     [InlineKeyboardButton("🌍 Fuentes", callback_data="menu_src")],
     [InlineKeyboardButton("📈 Tracking", callback_data="menu_trk")],
     [InlineKeyboardButton("💼 Mi Cartera", callback_data="menu_pf")],
+    [InlineKeyboardButton("🔍 Buscar ticker", switch_inline_query_current_chat="")],
 ]
 
 
@@ -85,6 +86,9 @@ async def _deep_link_detail(update: Update, context: ContextTypes.DEFAULT_TYPE, 
         [
             InlineKeyboardButton("💼 Mi Cartera", url=f"https://t.me/{bot_username}?start=portfolio"),
             InlineKeyboardButton("◀️ Menú", callback_data="back_menu"),
+        ],
+        [
+            InlineKeyboardButton("🔍 Otro ticker", switch_inline_query_current_chat=""),
         ],
     ])
 

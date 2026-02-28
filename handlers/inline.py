@@ -88,6 +88,12 @@ async def handle_inline(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 url=f"https://t.me/{bot_username}?start=portfolio",
             ),
         ],
+        [
+            InlineKeyboardButton(
+                "🔍 Otro ticker",
+                switch_inline_query_current_chat="",
+            ),
+        ],
     ])
 
     name = data.get("name", ticker)
