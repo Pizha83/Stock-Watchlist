@@ -1,6 +1,11 @@
 from sqlalchemy import Column, Integer, String, Text, Float, Boolean, DateTime, ForeignKey
 from sqlalchemy.orm import declarative_base, relationship
-from datetime import datetime
+from datetime import datetime, timezone
+
+
+def _utcnow():
+    """Return current UTC time (timezone-aware safe for Python 3.12+)."""
+    return datetime.now(timezone.utc)
 
 Base = declarative_base()
 
@@ -16,7 +21,7 @@ class Article(Base):
     source_domain = Column(String(200), default="")
     summary = Column(Text, default="")
     full_text = Column(Text, default="")
-    ingested_at = Column(DateTime, default=datetime.utcnow)
+    ingested_at = Column(DateTime, default=_utcnow)
     is_favorite = Column(Boolean, default=False)
 
     tags = relationship("ArticleTag", back_populates="article", cascade="all, delete-orphan")
@@ -61,7 +66,7 @@ class Company(Base):
     currency = Column(String(10), default="")
     sector = Column(String(100), default="")
     industry = Column(String(100), default="")
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=_utcnow)
 
     watchlist_items = relationship("WatchlistItem", back_populates="company")
     notes = relationship("CompanyNote", back_populates="company", cascade="all, delete-orphan")
@@ -76,7 +81,7 @@ class Watchlist(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String(200))
     user_id = Column(Integer)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=_utcnow)
 
     items = relationship("WatchlistItem", back_populates="watchlist", cascade="all, delete-orphan")
 
@@ -88,7 +93,7 @@ class WatchlistItem(Base):
     watchlist_id = Column(Integer, ForeignKey("watchlists.id"))
     company_id = Column(Integer, ForeignKey("companies.id"))
     notes = Column(Text, default="")
-    added_at = Column(DateTime, default=datetime.utcnow)
+    added_at = Column(DateTime, default=_utcnow)
 
     watchlist = relationship("Watchlist", back_populates="items")
     company = relationship("Company", back_populates="watchlist_items")
@@ -101,7 +106,7 @@ class CompanyNote(Base):
     company_id = Column(Integer, ForeignKey("companies.id"))
     note_type = Column(String(50))
     content = Column(Text, default="")
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=_utcnow)
 
     company = relationship("Company", back_populates="notes")
 
@@ -118,7 +123,7 @@ class Score(Base):
     management = Column(Float, default=0)
     total = Column(Float, default=0)
     comment = Column(Text, default="")
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=_utcnow)
 
     company = relationship("Company", back_populates="scores")
 
@@ -133,7 +138,7 @@ class Alert(Base):
     message = Column(Text, default="")
     due_date = Column(DateTime, nullable=True)
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=_utcnow)
 
     company = relationship("Company", back_populates="alerts")
 
@@ -147,3 +152,65 @@ class LinkCompanyArticle(Base):
 
     company = relationship("Company", back_populates="articles")
     article = relationship("Article", back_populates="companies")
+
+
+# ══════════════════════════════════════════════════════════════════
+# PORTFOLIO (v2 — per-user)
+# ══════════════════════════════════════════════════════════════════
+
+class Portfolio(Base):
+    __tablename__ = "portfolios"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, nullable=False)
+    name = Column(String(200), default="Mi cartera")
+    base_currency = Column(String(10), default="EUR")
+    created_at = Column(DateTime, default=_utcnow)
+
+    positions = relationship("Position", back_populates="portfolio", cascade="all, delete-orphan")
+
+
+class Position(Base):
+    __tablename__ = "positions"
+
+    id = Column(Integer, primary_key=True)
+    portfolio_id = Column(Integer, ForeignKey("portfolios.id"), nullable=False)
+    ticker = Column(String(20), nullable=False)
+    shares = Column(Float, default=0)
+    avg_price = Column(Float, default=0)
+    realized_pnl = Column(Float, default=0)
+    currency = Column(String(10), default="EUR")
+    created_at = Column(DateTime, default=_utcnow)
+    updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)
+
+    portfolio = relationship("Portfolio", back_populates="positions")
+    transactions = relationship("Transaction", back_populates="position", cascade="all, delete-orphan")
+
+
+class Transaction(Base):
+    __tablename__ = "transactions"
+
+    id = Column(Integer, primary_key=True)
+    position_id = Column(Integer, ForeignKey("positions.id"), nullable=False)
+    tx_type = Column(String(10), nullable=False)  # buy, sell, dividend
+    shares = Column(Float, nullable=False)
+    price = Column(Float, nullable=False)
+    commission = Column(Float, default=0)
+    date = Column(DateTime, default=_utcnow)
+    notes = Column(Text, default="")
+    created_at = Column(DateTime, default=_utcnow)
+
+    position = relationship("Position", back_populates="transactions")
+
+
+class PriceAlert(Base):
+    __tablename__ = "price_alerts"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, nullable=False)
+    ticker = Column(String(20), nullable=False)
+    condition = Column(String(10), nullable=False)  # above, below
+    target_price = Column(Float, nullable=False)
+    is_active = Column(Boolean, default=True)
+    triggered_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=_utcnow)

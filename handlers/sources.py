@@ -10,7 +10,7 @@ from services.sources.sources_catalog import (
     REGIONS, SOURCE_TYPES, get_sources_by_region, get_sources_by_type,
     search_sources, get_source_detail, toggle_recommended, update_notes, add_source,
 )
-from utils.text import escape_html, truncate
+from utils.text import escape_html, truncate, safe_truncate_html
 from config import ADMIN_USER_IDS
 
 # Conversation states
@@ -80,7 +80,7 @@ async def src_region_select(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         keyboard.append([InlineKeyboardButton("◀️ Volver", callback_data="src_region")])
         if len(text) > 4000:
-            text = text[:3990] + "..."
+            text = safe_truncate_html(text)
 
         await query.edit_message_text(
             text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="HTML",
@@ -130,7 +130,7 @@ async def src_type_select(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         keyboard.append([InlineKeyboardButton("◀️ Volver", callback_data="src_tipo")])
         if len(text) > 4000:
-            text = text[:3990] + "..."
+            text = safe_truncate_html(text)
 
         await query.edit_message_text(
             text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="HTML",
@@ -168,7 +168,7 @@ async def src_detail(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"<b>Notas:</b>\n{escape_html(s.notes or 'N/A')}"
         )
         if len(text) > 4000:
-            text = text[:3990] + "..."
+            text = safe_truncate_html(text)
 
         fav_label = "💔 Quitar recomendada" if s.is_recommended else "⭐ Recomendar"
         keyboard = [[InlineKeyboardButton(fav_label, callback_data=f"src_rec_{s.id}")]]

@@ -10,6 +10,7 @@ from telegram.ext import (
     CallbackQueryHandler, MessageHandler, filters,
 )
 from sqlalchemy.orm import joinedload
+from config import ADMIN_USER_IDS
 from services.db import get_session
 from services.models import Company, CompanyNote, Score, Alert, LinkCompanyArticle, Article
 from services.tracking.company_profile import (
@@ -25,11 +26,24 @@ from services.tracking.alerts import (
     create_alert, get_active_alerts, deactivate_alert, get_weekly_summary,
 )
 from services.market_data.yahoo_finance import get_company_data, get_watchlist_quotes
-from utils.text import escape_html, truncate, format_number, format_pct, format_ratio, format_price
+from utils.text import escape_html, truncate, format_number, format_pct, format_ratio, format_price, safe_truncate_html
 from utils.dates import format_date, parse_date
 from utils.validators import is_valid_ticker
 
 logger = logging.getLogger("stockbot")
+
+_WL_DENIED = "⛔ No tienes permiso para acceder a esta watchlist."
+_WL_NOT_FOUND = "⚠️ Watchlist no encontrada."
+
+
+def _check_wl_owner(wl, user_id: int) -> bool:
+    """Return True if watchlist belongs to user."""
+    return wl is not None and wl.user_id == user_id
+
+
+def _wl_error_msg(wl) -> str:
+    """Return appropriate error message for watchlist access failure."""
+    return _WL_NOT_FOUND if wl is None else _WL_DENIED
 
 # Conversation states
 WL_NAME, WL_TICKER, EMP_TICKER, NOTE_TEXT, SCORE_TEXT, ALERT_MSG, ALERT_DATE = range(7)
@@ -94,8 +108,8 @@ async def trk_wl_detail(update: Update, context: ContextTypes.DEFAULT_TYPE):
     session = get_session()
     try:
         wl = get_watchlist(session, wl_id)
-        if not wl:
-            await query.edit_message_text("❌ Watchlist no encontrada.")
+        if not wl or not _check_wl_owner(wl, update.effective_user.id):
+            await query.edit_message_text(_wl_error_msg(wl))
             return
 
         items = get_watchlist_items(session, wl_id)
@@ -130,7 +144,7 @@ async def trk_wl_detail(update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard.append([InlineKeyboardButton("◀️ Volver", callback_data="trk_wl")])
 
         if len(text) > 4000:
-            text = text[:3990] + "..."
+            text = safe_truncate_html(text)
 
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="HTML")
     finally:
@@ -146,6 +160,10 @@ async def trk_wl_remove_item(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     session = get_session()
     try:
+        wl = get_watchlist(session, wl_id)
+        if not _check_wl_owner(wl, update.effective_user.id):
+            await query.edit_message_text(_wl_error_msg(wl))
+            return
         remove_from_watchlist(session, wl_id, company_id)
     finally:
         session.close()
@@ -161,8 +179,11 @@ async def trk_wl_export(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     session = get_session()
     try:
-        csv_str = export_watchlist_csv(session, wl_id)
         wl = get_watchlist(session, wl_id)
+        if not _check_wl_owner(wl, update.effective_user.id):
+            await query.edit_message_text(_wl_error_msg(wl))
+            return
+        csv_str = export_watchlist_csv(session, wl_id)
         name = wl.name if wl else "watchlist"
     finally:
         session.close()
@@ -174,11 +195,15 @@ async def trk_wl_export(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def trk_wl_delete(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer("🗑️ Watchlist eliminada")
+    await query.answer()
     wl_id = int(query.data.split("_")[-1])
 
     session = get_session()
     try:
+        wl = get_watchlist(session, wl_id)
+        if not _check_wl_owner(wl, update.effective_user.id):
+            await query.edit_message_text(_wl_error_msg(wl))
+            return
         delete_watchlist(session, wl_id)
     finally:
         session.close()
@@ -220,6 +245,14 @@ async def trk_wl_add_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     wl_id = int(query.data.split("_")[-1])
+    session = get_session()
+    try:
+        wl = get_watchlist(session, wl_id)
+        if not _check_wl_owner(wl, update.effective_user.id):
+            await query.edit_message_text(_wl_error_msg(wl))
+            return ConversationHandler.END
+    finally:
+        session.close()
     context.user_data["add_wl_id"] = wl_id
     await query.edit_message_text(
         "Escribe el ticker de la empresa a añadir:\n"
@@ -292,7 +325,7 @@ async def trk_emp_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard.append([InlineKeyboardButton("◀️ Volver", callback_data="menu_trk")])
 
         if len(text) > 4000:
-            text = text[:3990] + "..."
+            text = safe_truncate_html(text)
 
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="HTML")
     finally:
@@ -344,12 +377,12 @@ async def trk_emp_detail(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if links:
             text += "📚 <b>Artículos vinculados:</b>\n"
             for lnk in links[:5]:
-                a = session.query(Article).get(lnk.article_id)
+                a = session.get(Article, lnk.article_id)
                 if a:
                     text += f"  • {escape_html(truncate(a.title, 50))}\n"
 
         if len(text) > 4000:
-            text = text[:3990] + "..."
+            text = safe_truncate_html(text)
 
         keyboard = [
             [InlineKeyboardButton("📊 Datos de mercado", callback_data=f"trk_mkt_{c.id}")],
@@ -373,7 +406,17 @@ async def trk_emp_detail(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def trk_emp_delete(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer("🗑️ Empresa eliminada")
+    await query.answer()
+    user_id = update.effective_user.id
+
+    if user_id not in ADMIN_USER_IDS:
+        await query.edit_message_text(
+            "⛔ Solo los administradores pueden eliminar empresas.\n"
+            "Las empresas son un recurso compartido y su eliminación "
+            "afecta a todos los usuarios.",
+        )
+        return
+
     company_id = int(query.data.split("_")[-1])
 
     session = get_session()
@@ -549,7 +592,7 @@ async def trk_score_view(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ]
 
         if len(text) > 4000:
-            text = text[:3990] + "..."
+            text = safe_truncate_html(text)
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="HTML")
     finally:
         session.close()
@@ -647,7 +690,7 @@ async def trk_alerts_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard.append([InlineKeyboardButton("◀️ Volver", callback_data="menu_trk")])
 
         if len(text) > 4000:
-            text = text[:3990] + "..."
+            text = safe_truncate_html(text)
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="HTML")
     finally:
         session.close()
@@ -655,11 +698,19 @@ async def trk_alerts_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def trk_alert_deactivate(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer("✅ Alerta desactivada")
+    await query.answer()
     alert_id = int(query.data.split("_")[-1])
+    user_id = update.effective_user.id
 
     session = get_session()
     try:
+        alert = session.get(Alert, alert_id)
+        if not alert:
+            await query.edit_message_text("⚠️ Alerta no encontrada.")
+            return
+        if alert.user_id != user_id:
+            await query.edit_message_text("⛔ No tienes permiso para modificar esta alerta.")
+            return
         deactivate_alert(session, alert_id)
     finally:
         session.close()
@@ -762,7 +813,7 @@ async def trk_weekly_summary(update: Update, context: ContextTypes.DEFAULT_TYPE)
             text += "  Sin artículos recientes\n"
 
         if len(text) > 4000:
-            text = text[:3990] + "..."
+            text = safe_truncate_html(text)
 
         keyboard = [[InlineKeyboardButton("◀️ Volver", callback_data="menu_trk")]]
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="HTML")
@@ -879,7 +930,7 @@ async def trk_market_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text += f"  Rango: {format_price(data.get('target_low'), cur)} - {format_price(data.get('target_high'), cur)}\n"
 
     if len(text) > 4000:
-        text = text[:3990] + "..."
+        text = safe_truncate_html(text)
 
     keyboard = [
         [InlineKeyboardButton("🔄 Actualizar", callback_data=f"trk_mkt_{company_id}")],
@@ -897,8 +948,8 @@ async def trk_wl_prices(update: Update, context: ContextTypes.DEFAULT_TYPE):
     session = get_session()
     try:
         wl = get_watchlist(session, wl_id)
-        if not wl:
-            await query.edit_message_text("❌ Watchlist no encontrada.")
+        if not wl or not _check_wl_owner(wl, update.effective_user.id):
+            await query.edit_message_text(_wl_error_msg(wl))
             return
 
         items = get_watchlist_items(session, wl_id)
@@ -945,7 +996,7 @@ async def trk_wl_prices(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text += "\n\n"
 
     if len(text) > 4000:
-        text = text[:3990] + "..."
+        text = safe_truncate_html(text)
 
     keyboard = [
         [InlineKeyboardButton("🔄 Actualizar", callback_data=f"trk_wlp_{wl_id}")],

@@ -1,7 +1,9 @@
 """Stock Research & Tracking Telegram Bot - Entry point."""
 
 import logging
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler
+from telegram.ext import (
+    Application, CommandHandler, CallbackQueryHandler, InlineQueryHandler,
+)
 from config import TELEGRAM_BOT_TOKEN
 from services.db import init_db, get_session
 from services.sources.sources_seed import seed_sources
@@ -15,6 +17,9 @@ from handlers.knowledge import kb_menu, get_handlers as kb_handlers
 from handlers.sources import src_menu, get_handlers as src_handlers
 from handlers.tracking import trk_menu, get_handlers as trk_handlers
 from handlers.admin import adm_menu, get_handlers as adm_handlers
+from handlers.group import handle_q
+from handlers.inline import handle_inline
+from handlers.portfolio import portfolio_menu, get_handlers as pf_handlers
 
 
 def main():
@@ -37,7 +42,12 @@ def main():
     logger.info("Base de datos inicializada y fuentes cargadas.")
 
     # ── Build Telegram application ───────────────────────────────
-    app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
+    async def _post_init(application):
+        me = await application.bot.get_me()
+        application.bot_data["bot_username"] = me.username
+        logger.info(f"Bot username: @{me.username}")
+
+    app = Application.builder().token(TELEGRAM_BOT_TOKEN).post_init(_post_init).build()
 
     # ── Command handlers ─────────────────────────────────────────
     app.add_handler(CommandHandler("start", start))
@@ -46,8 +56,13 @@ def main():
     app.add_handler(CommandHandler("datos", datos_menu))
     app.add_handler(CommandHandler("fuentes", src_menu))
     app.add_handler(CommandHandler("tracking", trk_menu))
+    app.add_handler(CommandHandler("cartera", portfolio_menu))
+    app.add_handler(CommandHandler("q", handle_q))
     app.add_handler(CommandHandler("admin", adm_menu))
     app.add_handler(CommandHandler("cancel", cancel))
+
+    # ── Inline query handler ─────────────────────────────────────
+    app.add_handler(InlineQueryHandler(handle_inline))
 
     # ── Conversation + callback handlers from modules ────────────
     # ConversationHandlers must be registered before generic
@@ -57,6 +72,8 @@ def main():
     for handler in src_handlers():
         app.add_handler(handler)
     for handler in trk_handlers():
+        app.add_handler(handler)
+    for handler in pf_handlers():
         app.add_handler(handler)
 
     # ── Back to menu ─────────────────────────────────────────────
