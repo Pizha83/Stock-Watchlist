@@ -1,18 +1,20 @@
 """Portfolio handler: manage positions, buy/sell, P&L (private chat only)."""
 
 import logging
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import (
     ContextTypes, ConversationHandler, CommandHandler,
     CallbackQueryHandler, MessageHandler, filters,
 )
 
-from config import DISCLAIMER
+from config import DISCLAIMER, btn_style
 from services.db import get_session
 from services.tracking.portfolio import (
     get_or_create_portfolio, list_positions, add_position,
     record_buy, record_sell, calc_total_pnl, get_positions_for_selection,
+    get_position,
 )
+from services.tracking.watchlist import get_watchlists, get_watchlist_items
 from services.market_data.yahoo_finance import get_quick_quote
 from utils.text import escape_html, format_price, format_number, safe_truncate_html
 from utils.validators import is_valid_ticker
@@ -66,9 +68,9 @@ async def portfolio_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def _show_portfolio_menu(send_fn, update, context):
     keyboard = [
         [InlineKeyboardButton("📊 Ver posiciones", callback_data="pf_positions")],
-        [InlineKeyboardButton("➕ Añadir posición", callback_data="pf_add")],
-        [InlineKeyboardButton("💰 Registrar compra", callback_data="pf_buy")],
-        [InlineKeyboardButton("💸 Registrar venta", callback_data="pf_sell")],
+        [InlineKeyboardButton("➕ Añadir posición", callback_data="pf_add", **btn_style("success"))],
+        [InlineKeyboardButton("💰 Registrar compra", callback_data="pf_buy", **btn_style("success"))],
+        [InlineKeyboardButton("💸 Registrar venta", callback_data="pf_sell", **btn_style("danger"))],
         [InlineKeyboardButton("📈 Rendimiento total", callback_data="pf_pnl")],
         [InlineKeyboardButton("◀️ Menú principal", callback_data="back_menu")],
     ]
@@ -178,10 +180,36 @@ async def pf_total_pnl(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def pf_add_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
+
+    # Suggest tickers from user's watchlists
+    user_id = update.effective_user.id
+    session = get_session()
+    try:
+        tickers = set()
+        for wl in get_watchlists(session, user_id):
+            for item in get_watchlist_items(session, wl.id):
+                tickers.add(item.company.ticker)
+    finally:
+        session.close()
+
     await query.edit_message_text(
         "➕ <b>Añadir posición</b>\n\nEscribe el ticker (ej: AAPL, SAN.MC):",
         parse_mode="HTML",
     )
+
+    if tickers:
+        ticker_list = sorted(tickers)
+        rows = [ticker_list[i:i + 3] for i in range(0, len(ticker_list), 3)]
+        await query.message.reply_text(
+            "O selecciona de tus watchlists:",
+            reply_markup=ReplyKeyboardMarkup(
+                rows,
+                resize_keyboard=True,
+                one_time_keyboard=True,
+                input_field_placeholder="Ticker (ej: AAPL)",
+            ),
+        )
+
     return PF_TICKER
 
 
@@ -204,6 +232,7 @@ async def pf_add_ticker(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"Precio actual: {format_price(q.get('price'), q.get('currency', 'USD'))}\n\n"
         f"¿Cuántas acciones tienes?",
         parse_mode="HTML",
+        reply_markup=ReplyKeyboardRemove(),
     )
     return PF_SHARES
 
@@ -383,21 +412,67 @@ async def pf_sell_select(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     pos_id = int(query.data.split("_")[-1])
     context.user_data["pf_sell_pos_id"] = pos_id
-    await query.edit_message_text("¿Cuántas acciones vendiste?")
+
+    # Get position shares for quick-sell shortcuts
+    user_id = update.effective_user.id
+    session = get_session()
+    try:
+        pos = get_position(session, user_id, pos_id)
+        shares = pos.shares if pos else 0
+    finally:
+        session.close()
+    context.user_data["pf_sell_total_shares"] = shares
+
+    await query.edit_message_text(
+        f"💸 <b>Venta</b> — {shares:.2f} acciones disponibles",
+        parse_mode="HTML",
+    )
+
+    kb_rows = []
+    if shares > 0:
+        half = round(shares / 2, 2)
+        quarter = round(shares / 4, 2)
+        kb_rows = [[f"Todo ({shares:.2f})", f"Mitad ({half:.2f})", f"25% ({quarter:.2f})"]]
+
+    reply_markup = ReplyKeyboardMarkup(
+        kb_rows,
+        resize_keyboard=True,
+        one_time_keyboard=True,
+        input_field_placeholder="Acciones a vender",
+    ) if kb_rows else None
+
+    await query.message.reply_text(
+        "¿Cuántas acciones vendiste?" + ("\nUsa los atajos o escribe la cantidad:" if kb_rows else ""),
+        reply_markup=reply_markup,
+    )
     return PF_SELL_SHARES
 
 
 async def pf_sell_shares(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    try:
-        shares = float(update.message.text.strip().replace(",", "."))
-        if shares <= 0:
-            raise ValueError
-    except ValueError:
-        await update.message.reply_text("❌ Número no válido.")
-        return PF_SELL_SHARES
+    text = update.message.text.strip()
+    total = context.user_data.get("pf_sell_total_shares", 0)
+
+    # Handle quick-sell shortcuts
+    if text.startswith("Todo"):
+        shares = total
+    elif text.startswith("Mitad"):
+        shares = round(total / 2, 2)
+    elif text.startswith("25%"):
+        shares = round(total / 4, 2)
+    else:
+        try:
+            shares = float(text.replace(",", "."))
+            if shares <= 0:
+                raise ValueError
+        except ValueError:
+            await update.message.reply_text("❌ Número no válido.")
+            return PF_SELL_SHARES
 
     context.user_data["pf_sell_shares"] = shares
-    await update.message.reply_text("💸 ¿A qué precio vendiste?")
+    await update.message.reply_text(
+        "💸 ¿A qué precio vendiste?",
+        reply_markup=ReplyKeyboardRemove(),
+    )
     return PF_SELL_PRICE
 
 
@@ -447,8 +522,9 @@ async def _pf_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
     if update.callback_query:
         await update.callback_query.answer()
-    if update.message:
-        await update.message.reply_text("Operación cancelada.")
+    msg = update.message or (update.callback_query and update.callback_query.message)
+    if msg:
+        await msg.reply_text("Operación cancelada.", reply_markup=ReplyKeyboardRemove())
     return ConversationHandler.END
 
 

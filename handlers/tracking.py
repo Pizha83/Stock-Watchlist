@@ -10,7 +10,7 @@ from telegram.ext import (
     CallbackQueryHandler, MessageHandler, filters,
 )
 from sqlalchemy.orm import joinedload
-from config import ADMIN_USER_IDS
+from config import ADMIN_USER_IDS, btn_style
 from services.db import get_session
 from services.models import Company, CompanyNote, Score, Alert, LinkCompanyArticle, Article
 from services.tracking.company_profile import (
@@ -99,7 +99,7 @@ async def trk_wl_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 text += f"• <b>{escape_html(wl.name)}</b> ({len(items)} empresas)\n"
 
         keyboard = [[InlineKeyboardButton(wl.name, callback_data=f"trk_wlv_{wl.id}")] for wl in wls]
-        keyboard.append([InlineKeyboardButton("➕ Crear watchlist", callback_data="trk_wl_crear")])
+        keyboard.append([InlineKeyboardButton("➕ Crear watchlist", callback_data="trk_wl_crear", **btn_style("success"))])
         keyboard.append([InlineKeyboardButton("◀️ Volver", callback_data="menu_trk")])
 
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="HTML")
@@ -138,15 +138,15 @@ async def trk_wl_detail(update: Update, context: ContextTypes.DEFAULT_TYPE):
         for item in items:
             keyboard.append([
                 InlineKeyboardButton(f"🏢 {item.company.ticker}", callback_data=f"trk_empv_{item.company.id}"),
-                InlineKeyboardButton("❌", callback_data=f"trk_wlrm_{wl_id}_{item.company.id}"),
+                InlineKeyboardButton("❌", callback_data=f"trk_wlrm_{wl_id}_{item.company.id}", **btn_style("danger")),
             ])
 
         if items:
             keyboard.append([InlineKeyboardButton("📊 Precios en vivo", callback_data=f"trk_wlp_{wl_id}")])
-        keyboard.append([InlineKeyboardButton("➕ Añadir ticker", callback_data=f"trk_wla_{wl_id}")])
+        keyboard.append([InlineKeyboardButton("➕ Añadir ticker", callback_data=f"trk_wla_{wl_id}", **btn_style("success"))])
         keyboard.append([
             InlineKeyboardButton("📥 Exportar CSV", callback_data=f"trk_wlx_{wl_id}"),
-            InlineKeyboardButton("🗑️ Eliminar", callback_data=f"trk_wld_{wl_id}"),
+            InlineKeyboardButton("🗑️ Eliminar", callback_data=f"trk_wld_{wl_id}", **btn_style("danger")),
         ])
         keyboard.append([InlineKeyboardButton("◀️ Volver", callback_data="trk_wl")])
 
@@ -328,7 +328,7 @@ async def trk_emp_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
             keyboard.append([InlineKeyboardButton(
                 f"{c.ticker} - {c.sector or 'N/A'}", callback_data=f"trk_empv_{c.id}",
             )])
-        keyboard.append([InlineKeyboardButton("➕ Añadir empresa", callback_data="trk_emp_add")])
+        keyboard.append([InlineKeyboardButton("➕ Añadir empresa", callback_data="trk_emp_add", **btn_style("success"))])
         keyboard.append([InlineKeyboardButton("◀️ Volver", callback_data="menu_trk")])
 
         if len(text) > 4000:
@@ -402,7 +402,7 @@ async def trk_emp_detail(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 InlineKeyboardButton("⭐ Scoring", callback_data=f"trk_sca_{c.id}"),
                 InlineKeyboardButton("📊 Ver scores", callback_data=f"trk_scv_{c.id}"),
             ],
-            [InlineKeyboardButton("🗑️ Eliminar empresa", callback_data=f"trk_empd_{c.id}")],
+            [InlineKeyboardButton("🗑️ Eliminar empresa", callback_data=f"trk_empd_{c.id}", **btn_style("danger"))],
             [InlineKeyboardButton("◀️ Volver", callback_data="trk_emp")],
         ]
 
@@ -594,7 +594,7 @@ async def trk_score_view(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 text += "\n"
 
         keyboard = [
-            [InlineKeyboardButton("➕ Nuevo scoring", callback_data=f"trk_sca_{company_id}")],
+            [InlineKeyboardButton("➕ Nuevo scoring", callback_data=f"trk_sca_{company_id}", **btn_style("success"))],
             [InlineKeyboardButton("◀️ Empresa", callback_data=f"trk_empv_{company_id}")],
         ]
 
@@ -765,7 +765,7 @@ async def trk_alerts_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
             keyboard.append([InlineKeyboardButton(
                 f"✅ Desactivar: {truncate(a.message, 25)}", callback_data=f"trk_ald_{a.id}",
             )])
-        keyboard.append([InlineKeyboardButton("➕ Nueva alerta", callback_data="trk_alert_add")])
+        keyboard.append([InlineKeyboardButton("➕ Nueva alerta", callback_data="trk_alert_add", **btn_style("success"))])
         keyboard.append([InlineKeyboardButton("◀️ Volver", callback_data="menu_trk")])
 
         if len(text) > 4000:
