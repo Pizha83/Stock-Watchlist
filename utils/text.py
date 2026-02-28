@@ -25,9 +25,12 @@ def clean_text(text: str) -> str:
 
 
 def format_number(n, currency: str = "") -> str:
-    """Format large numbers: 1234567890 -> 1.23B"""
-    if n is None or n == 0:
+    """Format large numbers: 1234567890 -> 1.23B. None -> N/A, 0 -> 0."""
+    if n is None:
         return "N/A"
+    if n == 0:
+        prefix = f"{currency} " if currency else ""
+        return f"{prefix}0"
     prefix = f"{currency} " if currency else ""
     sign = "-" if n < 0 else ""
     a = abs(n)
@@ -43,22 +46,22 @@ def format_number(n, currency: str = "") -> str:
 
 
 def format_pct(n) -> str:
-    """Format a decimal as percentage: 0.462 -> 46.2%"""
-    if n is None or n == 0:
+    """Format a decimal as percentage: 0.462 -> 46.2%. None -> N/A."""
+    if n is None:
         return "N/A"
     return f"{n * 100:.1f}%"
 
 
 def format_ratio(n) -> str:
-    """Format a ratio: 30.5 -> 30.5x"""
-    if n is None or n == 0:
+    """Format a ratio: 30.5 -> 30.5x. None -> N/A."""
+    if n is None:
         return "N/A"
     return f"{n:.1f}x"
 
 
 def format_price(n, currency: str = "") -> str:
-    """Format a price."""
-    if n is None or n == 0:
+    """Format a price. None -> N/A."""
+    if n is None:
         return "N/A"
     prefix = f"{currency} " if currency else ""
     return f"{prefix}{n:,.2f}"

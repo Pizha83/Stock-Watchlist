@@ -10,6 +10,7 @@ from telegram.ext import (
     CallbackQueryHandler, MessageHandler, filters,
 )
 from sqlalchemy.orm import joinedload
+from config import ADMIN_USER_IDS
 from services.db import get_session
 from services.models import Company, CompanyNote, Score, Alert, LinkCompanyArticle, Article
 from services.tracking.company_profile import (
@@ -32,11 +33,17 @@ from utils.validators import is_valid_ticker
 logger = logging.getLogger("stockbot")
 
 _WL_DENIED = "⛔ No tienes permiso para acceder a esta watchlist."
+_WL_NOT_FOUND = "⚠️ Watchlist no encontrada."
 
 
 def _check_wl_owner(wl, user_id: int) -> bool:
     """Return True if watchlist belongs to user."""
     return wl is not None and wl.user_id == user_id
+
+
+def _wl_error_msg(wl) -> str:
+    """Return appropriate error message for watchlist access failure."""
+    return _WL_NOT_FOUND if wl is None else _WL_DENIED
 
 # Conversation states
 WL_NAME, WL_TICKER, EMP_TICKER, NOTE_TEXT, SCORE_TEXT, ALERT_MSG, ALERT_DATE = range(7)
@@ -102,7 +109,7 @@ async def trk_wl_detail(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         wl = get_watchlist(session, wl_id)
         if not wl or not _check_wl_owner(wl, update.effective_user.id):
-            await query.edit_message_text(_WL_DENIED if wl else "❌ Watchlist no encontrada.")
+            await query.edit_message_text(_wl_error_msg(wl))
             return
 
         items = get_watchlist_items(session, wl_id)
@@ -155,7 +162,7 @@ async def trk_wl_remove_item(update: Update, context: ContextTypes.DEFAULT_TYPE)
     try:
         wl = get_watchlist(session, wl_id)
         if not _check_wl_owner(wl, update.effective_user.id):
-            await query.edit_message_text(_WL_DENIED)
+            await query.edit_message_text(_wl_error_msg(wl))
             return
         remove_from_watchlist(session, wl_id, company_id)
     finally:
@@ -174,7 +181,7 @@ async def trk_wl_export(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         wl = get_watchlist(session, wl_id)
         if not _check_wl_owner(wl, update.effective_user.id):
-            await query.edit_message_text(_WL_DENIED)
+            await query.edit_message_text(_wl_error_msg(wl))
             return
         csv_str = export_watchlist_csv(session, wl_id)
         name = wl.name if wl else "watchlist"
@@ -195,7 +202,7 @@ async def trk_wl_delete(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         wl = get_watchlist(session, wl_id)
         if not _check_wl_owner(wl, update.effective_user.id):
-            await query.edit_message_text(_WL_DENIED)
+            await query.edit_message_text(_wl_error_msg(wl))
             return
         delete_watchlist(session, wl_id)
     finally:
@@ -242,7 +249,7 @@ async def trk_wl_add_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         wl = get_watchlist(session, wl_id)
         if not _check_wl_owner(wl, update.effective_user.id):
-            await query.edit_message_text(_WL_DENIED)
+            await query.edit_message_text(_wl_error_msg(wl))
             return ConversationHandler.END
     finally:
         session.close()
@@ -399,7 +406,17 @@ async def trk_emp_detail(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def trk_emp_delete(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer("🗑️ Empresa eliminada")
+    await query.answer()
+    user_id = update.effective_user.id
+
+    if user_id not in ADMIN_USER_IDS:
+        await query.edit_message_text(
+            "⛔ Solo los administradores pueden eliminar empresas.\n"
+            "Las empresas son un recurso compartido y su eliminación "
+            "afecta a todos los usuarios.",
+        )
+        return
+
     company_id = int(query.data.split("_")[-1])
 
     session = get_session()
@@ -932,7 +949,7 @@ async def trk_wl_prices(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         wl = get_watchlist(session, wl_id)
         if not wl or not _check_wl_owner(wl, update.effective_user.id):
-            await query.edit_message_text(_WL_DENIED if wl else "❌ Watchlist no encontrada.")
+            await query.edit_message_text(_wl_error_msg(wl))
             return
 
         items = get_watchlist_items(session, wl_id)
