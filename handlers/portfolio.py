@@ -356,7 +356,7 @@ async def pf_buy_price(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         pos = record_buy(session, user_id, pos_id, shares, price)
         if not pos:
-            await update.message.reply_text("❌ Posición no encontrada.")
+            await update.message.reply_text("❌ Posición no encontrada.", reply_markup=ReplyKeyboardRemove())
             return ConversationHandler.END
 
         await update.message.reply_text(
@@ -493,10 +493,10 @@ async def pf_sell_price(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         pos, err = record_sell(session, user_id, pos_id, shares, price)
         if err == "position_not_found":
-            await update.message.reply_text("❌ Posición no encontrada.")
+            await update.message.reply_text("❌ Posición no encontrada.", reply_markup=ReplyKeyboardRemove())
             return ConversationHandler.END
         if err == "insufficient_shares":
-            await update.message.reply_text("❌ No tienes suficientes acciones para esta venta.")
+            await update.message.reply_text("❌ No tienes suficientes acciones para esta venta.", reply_markup=ReplyKeyboardRemove())
             return ConversationHandler.END
 
         realized = (price - pos.avg_price) * shares

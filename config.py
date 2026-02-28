@@ -31,8 +31,9 @@ RATE_LIMIT_WINDOW = 60          # window in seconds
 # Disclaimer
 DISCLAIMER = "No es asesoramiento financiero."
 
-# Button styles (Bot API 9.4, via api_kwargs)
-ENABLE_BUTTON_STYLES = True
+# Button styles (Bot API 9.4, experimental — via api_kwargs)
+# Set env ENABLE_BUTTON_STYLES=1 to activate; ignored by older Telegram clients.
+ENABLE_BUTTON_STYLES = os.getenv("ENABLE_BUTTON_STYLES", "").lower() in ("1", "true", "yes")
 
 def btn_style(style: str) -> dict:
     """Return api_kwargs dict for button style if enabled.
