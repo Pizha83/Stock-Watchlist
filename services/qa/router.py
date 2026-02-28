@@ -15,6 +15,9 @@ _BLACKLIST = {
     "SHORT", "BEAR", "BULL", "STOP", "LOSS", "GAIN", "RISK", "DEBT",
     "CASH", "FREE", "NET", "TAX", "FEE", "DIV", "AVG", "MAX", "MIN",
     "TOP", "HOT", "BEST", "GOOD", "BAD", "FAIR", "POOR",
+    # Spanish common words and financial terms
+    "HOLA", "COMO", "QUE", "VER", "MAS", "BIEN", "MENU", "AYUDA",
+    "DEUDA", "PRECIO", "VALOR", "RIESGO", "MARGEN", "TOTAL", "DATOS",
 }
 
 # Regex: $AAPL, AAPL, SAN.MC, AIR.PA, BMW.DE, 0700.HK
