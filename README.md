@@ -10,7 +10,7 @@ Bot de Telegram para investigación y seguimiento de empresas cotizadas. Incluye
 - **Artículos**: Buscar, guardar, clasificar y resumir artículos sobre inversión (ES/EN)
 - **Datos necesarios**: Taxonomía completa de campos, ratios y fórmulas para análisis fundamental
 - **Fuentes**: Directorio de fuentes gratuitas por región y tipo (SEC EDGAR, CNMV, FRED, ECB...)
-- **Tracking**: Watchlists con validación de propiedad, perfiles de empresa, tesis, scoring (0-5) y alertas
+- **Tracking**: Watchlists con validación de propiedad, perfiles de empresa, tesis, scoring paso a paso (0-5 por categoría, con teclado interactivo; retrocompatible con formato en una línea `3,4,2,4,5 comentario`) y alertas
 - **Datos de mercado**: Información financiera con caché en tiempo real vía Yahoo Finance (yfinance)
   - Precio actual, variación, rango 52 semanas
   - Valoración: Market Cap, EV, P/E, EV/EBITDA, P/B, P/S
@@ -65,6 +65,10 @@ export ADMIN_USER_IDS="123456789,987654321"
 
 # Opcional: Finnhub API key (fuente alternativa de datos)
 export FINNHUB_API_KEY="tu_finnhub_key"
+
+# Opcional/experimental: colores de botones (Bot API 9.4)
+# Solo funciona en clientes Telegram recientes; se ignora en los demás.
+export ENABLE_BUTTON_STYLES="1"
 ```
 
 En Windows (PowerShell):
@@ -113,9 +117,9 @@ Usa `/q` seguido del ticker y opcionalmente un intent:
 
 ### Cartera de inversión
 
-- Añadir posiciones con ticker, cantidad y precio medio
+- Añadir posiciones con ticker, cantidad y precio medio (sugiere tickers de tus watchlists)
 - Registrar compras adicionales (recalcula precio medio ponderado)
-- Registrar ventas (calcula P&L realizado)
+- Registrar ventas con atajos rápidos (Todo / Mitad / 25%) y cálculo de P&L realizado
 - Ver posiciones con precios en vivo y P&L no realizado
 - Rendimiento total de la cartera
 
@@ -129,7 +133,7 @@ Usa `/q` seguido del ticker y opcionalmente un intent:
 6. **Crear watchlist**: `/tracking` → Watchlists → Crear → Añadir tickers (perfil auto-completado desde Yahoo Finance)
 7. **Ver datos de mercado**: Detalle de empresa → 📊 Datos de mercado → Información financiera completa
 8. **Precios en vivo**: Detalle de watchlist → 📊 Precios en vivo → Resumen de precios de todas las empresas
-9. **Scoring**: Detalle de empresa → Scoring → Introducir puntuaciones (ej: `4,3,3,4,5 Buen negocio`)
+9. **Scoring**: Detalle de empresa → Scoring → Puntuar paso a paso (teclado 0-5 por categoría) o en una línea: `4,3,3,4,5 Buen negocio`
 10. **Alertas**: `/tracking` → Alertas → Nueva alerta → Mensaje y fecha
 
 ## Estructura del proyecto

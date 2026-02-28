@@ -1,7 +1,7 @@
 """Group handler: /q command for quick Q&A in groups."""
 
 import logging
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ForceReply
 from telegram.ext import ContextTypes
 
 from config import RATE_LIMIT_GROUP_PER_USER, RATE_LIMIT_WINDOW
@@ -51,7 +51,15 @@ async def handle_q(update: Update, context: ContextTypes.DEFAULT_TYPE):
     intent = parsed["intent"]
 
     if not tickers:
-        await update.message.reply_text(_HELP_TEXT, parse_mode="HTML")
+        reply_markup = None
+        if update.effective_chat.type in ("group", "supergroup"):
+            reply_markup = ForceReply(
+                selective=True,
+                input_field_placeholder="/q AAPL valoracion",
+            )
+        await update.message.reply_text(
+            _HELP_TEXT, parse_mode="HTML", reply_markup=reply_markup,
+        )
         return
 
     ticker = tickers[0]

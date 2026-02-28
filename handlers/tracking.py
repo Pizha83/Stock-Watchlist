@@ -4,13 +4,13 @@ import csv
 import io
 import logging
 from datetime import datetime
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import (
     ContextTypes, ConversationHandler, CommandHandler,
     CallbackQueryHandler, MessageHandler, filters,
 )
 from sqlalchemy.orm import joinedload
-from config import ADMIN_USER_IDS
+from config import ADMIN_USER_IDS, btn_style
 from services.db import get_session
 from services.models import Company, CompanyNote, Score, Alert, LinkCompanyArticle, Article
 from services.tracking.company_profile import (
@@ -46,7 +46,14 @@ def _wl_error_msg(wl) -> str:
     return _WL_NOT_FOUND if wl is None else _WL_DENIED
 
 # Conversation states
-WL_NAME, WL_TICKER, EMP_TICKER, NOTE_TEXT, SCORE_TEXT, ALERT_MSG, ALERT_DATE = range(7)
+WL_NAME, WL_TICKER, EMP_TICKER, NOTE_TEXT, SCORE_1, SCORE_2, SCORE_3, SCORE_4, SCORE_5, SCORE_COMMENT, ALERT_MSG, ALERT_DATE = range(12)
+
+_SCORE_KB = ReplyKeyboardMarkup(
+    [["0", "1", "2", "3", "4", "5"]],
+    resize_keyboard=True,
+    one_time_keyboard=True,
+    input_field_placeholder="Puntúa 0-5",
+)
 
 
 # ── MAIN MENU ────────────────────────────────────────────────────
@@ -92,7 +99,7 @@ async def trk_wl_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 text += f"• <b>{escape_html(wl.name)}</b> ({len(items)} empresas)\n"
 
         keyboard = [[InlineKeyboardButton(wl.name, callback_data=f"trk_wlv_{wl.id}")] for wl in wls]
-        keyboard.append([InlineKeyboardButton("➕ Crear watchlist", callback_data="trk_wl_crear")])
+        keyboard.append([InlineKeyboardButton("➕ Crear watchlist", callback_data="trk_wl_crear", **btn_style("success"))])
         keyboard.append([InlineKeyboardButton("◀️ Volver", callback_data="menu_trk")])
 
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="HTML")
@@ -131,15 +138,15 @@ async def trk_wl_detail(update: Update, context: ContextTypes.DEFAULT_TYPE):
         for item in items:
             keyboard.append([
                 InlineKeyboardButton(f"🏢 {item.company.ticker}", callback_data=f"trk_empv_{item.company.id}"),
-                InlineKeyboardButton("❌", callback_data=f"trk_wlrm_{wl_id}_{item.company.id}"),
+                InlineKeyboardButton("❌", callback_data=f"trk_wlrm_{wl_id}_{item.company.id}", **btn_style("danger")),
             ])
 
         if items:
             keyboard.append([InlineKeyboardButton("📊 Precios en vivo", callback_data=f"trk_wlp_{wl_id}")])
-        keyboard.append([InlineKeyboardButton("➕ Añadir ticker", callback_data=f"trk_wla_{wl_id}")])
+        keyboard.append([InlineKeyboardButton("➕ Añadir ticker", callback_data=f"trk_wla_{wl_id}", **btn_style("success"))])
         keyboard.append([
             InlineKeyboardButton("📥 Exportar CSV", callback_data=f"trk_wlx_{wl_id}"),
-            InlineKeyboardButton("🗑️ Eliminar", callback_data=f"trk_wld_{wl_id}"),
+            InlineKeyboardButton("🗑️ Eliminar", callback_data=f"trk_wld_{wl_id}", **btn_style("danger")),
         ])
         keyboard.append([InlineKeyboardButton("◀️ Volver", callback_data="trk_wl")])
 
@@ -321,7 +328,7 @@ async def trk_emp_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
             keyboard.append([InlineKeyboardButton(
                 f"{c.ticker} - {c.sector or 'N/A'}", callback_data=f"trk_empv_{c.id}",
             )])
-        keyboard.append([InlineKeyboardButton("➕ Añadir empresa", callback_data="trk_emp_add")])
+        keyboard.append([InlineKeyboardButton("➕ Añadir empresa", callback_data="trk_emp_add", **btn_style("success"))])
         keyboard.append([InlineKeyboardButton("◀️ Volver", callback_data="menu_trk")])
 
         if len(text) > 4000:
@@ -395,7 +402,7 @@ async def trk_emp_detail(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 InlineKeyboardButton("⭐ Scoring", callback_data=f"trk_sca_{c.id}"),
                 InlineKeyboardButton("📊 Ver scores", callback_data=f"trk_scv_{c.id}"),
             ],
-            [InlineKeyboardButton("🗑️ Eliminar empresa", callback_data=f"trk_empd_{c.id}")],
+            [InlineKeyboardButton("🗑️ Eliminar empresa", callback_data=f"trk_empd_{c.id}", **btn_style("danger"))],
             [InlineKeyboardButton("◀️ Volver", callback_data="trk_emp")],
         ]
 
@@ -587,7 +594,7 @@ async def trk_score_view(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 text += "\n"
 
         keyboard = [
-            [InlineKeyboardButton("➕ Nuevo scoring", callback_data=f"trk_sca_{company_id}")],
+            [InlineKeyboardButton("➕ Nuevo scoring", callback_data=f"trk_sca_{company_id}", **btn_style("success"))],
             [InlineKeyboardButton("◀️ Empresa", callback_data=f"trk_empv_{company_id}")],
         ]
 
@@ -605,41 +612,76 @@ async def trk_score_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     company_id = int(query.data.split("_")[-1])
     context.user_data["score_company_id"] = company_id
 
-    cats = "\n".join(f"  {i+1}. {label} - {desc}" for i, (_, label, desc) in enumerate(SCORING_CATEGORIES))
+    cats = "\n".join(f"  {i+1}. {label}" for i, (_, label, _desc) in enumerate(SCORING_CATEGORIES))
+    cat = SCORING_CATEGORIES[0]
     await query.edit_message_text(
         f"⭐ <b>Nuevo Scoring</b>\n\n"
-        f"Categorías (0-5):\n{cats}\n\n"
-        "Escribe 5 números separados por comas y opcionalmente un comentario:\n"
-        "<code>3,4,2,4,5 Buen negocio con margen de mejora</code>",
+        f"Categorías:\n{cats}\n\n"
+        f"<i>Tip: también puedes enviar 5 valores de golpe: "
+        f"<code>3,4,2,4,5 comentario</code></i>",
         parse_mode="HTML",
     )
-    return SCORE_TEXT
+    await query.message.reply_text(
+        f"⭐ <b>1/5 — {cat[1]}</b>\n<i>{cat[2]}</i>\n\nPuntúa 0-5:",
+        parse_mode="HTML",
+        reply_markup=_SCORE_KB,
+    )
+    return SCORE_1
 
 
-async def trk_score_save(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def _score_step(update: Update, context: ContextTypes.DEFAULT_TYPE, step: int):
+    """Generic handler for scoring steps 0-4."""
     text = update.message.text.strip()
-    company_id = context.user_data.get("score_company_id")
+    states = [SCORE_1, SCORE_2, SCORE_3, SCORE_4, SCORE_5]
 
-    # Parse: "3,4,2,4,5 comment" or "3,4,2,4,5"
-    parts = text.split(None, 1)
-    scores_str = parts[0]
-    comment = parts[1] if len(parts) > 1 else ""
+    # Step 0: retrocompat — accept "3,4,2,4,5 comment" one-line format
+    if step == 0 and "," in text:
+        parts = text.split(None, 1)
+        try:
+            values = [float(x.strip()) for x in parts[0].split(",")]
+            if len(values) == 5 and all(0 <= v <= 5 for v in values):
+                comment = parts[1] if len(parts) > 1 else ""
+                return await _score_save_all(update, context, values, comment)
+        except (ValueError, IndexError):
+            pass
 
+    # Normal: single number 0-5
     try:
-        values = [float(x.strip()) for x in scores_str.split(",")]
-        if len(values) != 5:
-            raise ValueError("need 5 values")
-        for v in values:
-            if v < 0 or v > 5:
-                raise ValueError("values must be 0-5")
-    except (ValueError, IndexError):
+        val = float(text)
+        if not (0 <= val <= 5):
+            raise ValueError
+    except ValueError:
         await update.message.reply_text(
-            "❌ Formato incorrecto. Usa: <code>3,4,2,4,5 comentario</code>\n"
-            "(5 números del 0 al 5 separados por comas)",
-            parse_mode="HTML",
+            "❌ Escribe un número del 0 al 5.",
+            reply_markup=_SCORE_KB,
         )
-        return SCORE_TEXT
+        return states[step]
 
+    # Store value
+    context.user_data[f"score_{SCORING_CATEGORIES[step][0]}"] = val
+
+    if step < 4:
+        cat = SCORING_CATEGORIES[step + 1]
+        await update.message.reply_text(
+            f"⭐ <b>{step+2}/5 — {cat[1]}</b>\n<i>{cat[2]}</i>\n\nPuntúa 0-5:",
+            parse_mode="HTML",
+            reply_markup=_SCORE_KB,
+        )
+        return states[step + 1]
+
+    # All 5 collected → ask for comment
+    await update.message.reply_text(
+        "💬 Escribe un comentario (opcional).\n"
+        "Envía <code>-</code> para omitir.",
+        parse_mode="HTML",
+        reply_markup=ReplyKeyboardRemove(),
+    )
+    return SCORE_COMMENT
+
+
+async def _score_save_all(update, context, values, comment):
+    """Save score from values list and comment."""
+    company_id = context.user_data.get("score_company_id")
     session = get_session()
     try:
         score = create_score(
@@ -650,6 +692,13 @@ async def trk_score_save(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(
             f"✅ Scoring guardado: <b>{score.total}/5</b>",
             parse_mode="HTML",
+            reply_markup=ReplyKeyboardRemove(),
+        )
+        await update.message.reply_text(
+            f"Negocio:{values[0]} Finanzas:{values[1]} Valoración:{values[2]} "
+            f"Riesgo:{values[3]} Mgmt:{values[4]}"
+            + (f"\n<i>{escape_html(comment)}</i>" if comment else ""),
+            parse_mode="HTML",
             reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton("📊 Ver scores", callback_data=f"trk_scv_{company_id}")],
                 [InlineKeyboardButton("🏢 Empresa", callback_data=f"trk_empv_{company_id}")],
@@ -657,7 +706,37 @@ async def trk_score_save(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
     finally:
         session.close()
+    for key, _, _ in SCORING_CATEGORIES:
+        context.user_data.pop(f"score_{key}", None)
+    context.user_data.pop("score_company_id", None)
     return ConversationHandler.END
+
+
+async def trk_score_step_1(update, context):
+    return await _score_step(update, context, 0)
+
+
+async def trk_score_step_2(update, context):
+    return await _score_step(update, context, 1)
+
+
+async def trk_score_step_3(update, context):
+    return await _score_step(update, context, 2)
+
+
+async def trk_score_step_4(update, context):
+    return await _score_step(update, context, 3)
+
+
+async def trk_score_step_5(update, context):
+    return await _score_step(update, context, 4)
+
+
+async def trk_score_comment(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text.strip()
+    comment = "" if text in ("-", "no", "omitir", "skip") else text
+    values = [context.user_data.get(f"score_{key}", 0) for key, _, _ in SCORING_CATEGORIES]
+    return await _score_save_all(update, context, values, comment)
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -686,7 +765,7 @@ async def trk_alerts_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
             keyboard.append([InlineKeyboardButton(
                 f"✅ Desactivar: {truncate(a.message, 25)}", callback_data=f"trk_ald_{a.id}",
             )])
-        keyboard.append([InlineKeyboardButton("➕ Nueva alerta", callback_data="trk_alert_add")])
+        keyboard.append([InlineKeyboardButton("➕ Nueva alerta", callback_data="trk_alert_add", **btn_style("success"))])
         keyboard.append([InlineKeyboardButton("◀️ Volver", callback_data="menu_trk")])
 
         if len(text) > 4000:
@@ -1010,8 +1089,9 @@ async def _cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
     if update.callback_query:
         await update.callback_query.answer()
-    if update.message:
-        await update.message.reply_text("Operación cancelada.")
+    msg = update.message or (update.callback_query and update.callback_query.message)
+    if msg:
+        await msg.reply_text("Operación cancelada.", reply_markup=ReplyKeyboardRemove())
     return ConversationHandler.END
 
 
@@ -1033,7 +1113,12 @@ def get_handlers():
             WL_TICKER: [MessageHandler(filters.TEXT & ~filters.COMMAND, trk_wl_add_ticker)],
             EMP_TICKER: [MessageHandler(filters.TEXT & ~filters.COMMAND, trk_emp_add_ticker)],
             NOTE_TEXT: [MessageHandler(filters.TEXT & ~filters.COMMAND, trk_note_save)],
-            SCORE_TEXT: [MessageHandler(filters.TEXT & ~filters.COMMAND, trk_score_save)],
+            SCORE_1: [MessageHandler(filters.TEXT & ~filters.COMMAND, trk_score_step_1)],
+            SCORE_2: [MessageHandler(filters.TEXT & ~filters.COMMAND, trk_score_step_2)],
+            SCORE_3: [MessageHandler(filters.TEXT & ~filters.COMMAND, trk_score_step_3)],
+            SCORE_4: [MessageHandler(filters.TEXT & ~filters.COMMAND, trk_score_step_4)],
+            SCORE_5: [MessageHandler(filters.TEXT & ~filters.COMMAND, trk_score_step_5)],
+            SCORE_COMMENT: [MessageHandler(filters.TEXT & ~filters.COMMAND, trk_score_comment)],
             ALERT_MSG: [MessageHandler(filters.TEXT & ~filters.COMMAND, trk_alert_msg)],
             ALERT_DATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, trk_alert_date)],
         },
