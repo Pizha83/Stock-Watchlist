@@ -126,6 +126,21 @@ def main():
     for handler in adm_handlers():
         app.add_handler(handler)
 
+    # ── Error handler (suppress noisy network tracebacks) ───────
+    async def _error_handler(update, context):
+        import telegram.error
+        err = context.error
+        if isinstance(err, telegram.error.NetworkError):
+            logger.warning("Network error (transient): %s", err)
+        elif isinstance(err, telegram.error.RetryAfter):
+            logger.warning("Flood control: retry in %s s", err.retry_after)
+        elif isinstance(err, telegram.error.TimedOut):
+            logger.warning("Request timed out")
+        else:
+            logger.error("Unhandled exception", exc_info=context.error)
+
+    app.add_error_handler(_error_handler)
+
     # ── Start polling ────────────────────────────────────────────
     logger.info("Bot iniciado. Esperando mensajes...")
     app.run_polling(drop_pending_updates=True)
