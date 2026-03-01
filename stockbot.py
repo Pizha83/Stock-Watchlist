@@ -1,6 +1,8 @@
 """Stock Research & Tracking Telegram Bot - Entry point."""
 
 import logging
+import warnings
+warnings.filterwarnings("ignore", message=".*per_message=False.*", category=UserWarning)
 from telegram.ext import (
     Application, CommandHandler, CallbackQueryHandler, InlineQueryHandler,
 )
